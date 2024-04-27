@@ -1,16 +1,24 @@
-# url_shortener
+# Shortly
 
-A new Flutter project.
+A simple application that allows you to shorten long urls using the [Clean URI API](https://cleanuri.com/docs).
 
-## Getting Started
+This idea is from the [Shortly URL shortening API Challenge challenge on Frontend Mentor](https://www.frontendmentor.io/challenges/url-shortening-api-landing-page-2ce3ob-G).
+However, I am doing this so I can learn Flutter.
 
-This project is a starting point for a Flutter application.
+## Progress
 
-A few resources to get you started if this is your first Flutter project:
+**In development**
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+There's still a lot to be done. The users should be able to:
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+- [] View the optimal layout for the site depending on their device's screen size
+- [x] Shorten any valid URL
+- [] See a list of their shortened links, even after closing the application (currently, they can see a list but it is not kept in persistent storage yet)
+- [] Copy the shortened link to their clipboard in a single click
+- [] Receive an error message when the form is submitted if:
+  - The `TextField` field is empty
+  - The value of the `TextField` is not a valid url
+
+## Preview
+
+<video src="./recordings/milestone1.mp4" autoplay muted></video>
