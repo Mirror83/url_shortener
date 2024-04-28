@@ -54,7 +54,7 @@ class MyHomePage extends StatelessWidget {
         ),
       ),
       body: ListView(
-        children: const <Widget>[LinkForm()],
+        children: const <Widget>[LinkSection()],
       ),
     );
   }
@@ -102,14 +102,14 @@ class ShortenedLink {
   }
 }
 
-class LinkForm extends StatefulWidget {
-  const LinkForm({super.key});
+class LinkSection extends StatefulWidget {
+  const LinkSection({super.key});
 
   @override
-  State<LinkForm> createState() => _LinkFormState();
+  State<LinkSection> createState() => _LinkSectionState();
 }
 
-class _LinkFormState extends State<LinkForm> {
+class _LinkSectionState extends State<LinkSection> {
   // Arbitrarily decided minimum url length
   static const minUrlLength = 30;
 
@@ -119,6 +119,26 @@ class _LinkFormState extends State<LinkForm> {
   final _formKey = GlobalKey<FormState>();
 
   final shortenedLinks = <ShortenedLink>{};
+
+  String? linkFieldValidator(String? value) {
+    if (value == null || value.isEmpty) {
+      return "Please add a link";
+    } else if (value.length < minUrlLength) {
+      return "Url must be at least $minUrlLength characters long";
+    } else if (Uri.tryParse(value) == null) {
+      return "Ensure that the link is well-formatted";
+    }
+
+    updateLongLink(value);
+
+    return null;
+  }
+
+  void updateLongLink(String value) {
+    setState(() {
+      longLink = value;
+    });
+  }
 
   void shortenLink(String longLink) async {
     try {
@@ -157,76 +177,67 @@ class _LinkFormState extends State<LinkForm> {
 
   @override
   Widget build(BuildContext context) {
+    return Column(
+      children: [
+        createLinkForm(context),
+        Column(
+          children: shortenedLinks
+              .map((shortenedLink) => Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: LinkCard(shortenedLink: shortenedLink),
+                  ))
+              .toList(),
+        ),
+      ],
+    );
+  }
+
+  Widget createLinkForm(BuildContext context) {
     final theme = Theme.of(context);
-    return Column(children: [
-      Padding(
-        padding: const EdgeInsets.all(32.0),
-        child: Card(
-          color: theme.colorScheme.surfaceVariant,
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Stack(children: <Widget>[
-              Form(
-                key: _formKey,
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: <Widget>[
-                    TextFormField(
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return "Please add a link";
-                        } else if (value.length < minUrlLength) {
-                          return "Url must be at least $minUrlLength characters long";
-                        } else if (Uri.tryParse(value) == null) {
-                          return "Ensure that the link is well-formatted";
-                        }
-
-                        setState(() {
-                          longLink = value;
-                        });
-
-                        return null;
-                      },
-                      decoration: const InputDecoration(
-                        hintText: "Shorten a link here...",
-                      ),
-                      onChanged: (value) {
-                        _formKey.currentState!.validate();
-                      },
+    return Padding(
+      padding: const EdgeInsets.all(32.0),
+      child: Card(
+        color: theme.colorScheme.surfaceVariant,
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Stack(children: <Widget>[
+            Form(
+              key: _formKey,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: <Widget>[
+                  TextFormField(
+                    validator: linkFieldValidator,
+                    decoration: const InputDecoration(
+                      hintText: "Shorten a link here...",
                     ),
-                    const SizedBox(height: 16),
-                    ElevatedButton(
-                      onPressed: isLoading
-                          ? null
-                          : () {
-                              if (_formKey.currentState!.validate()) {
-                                developer.log("Shortening url...");
-                                shortenLink(longLink);
-                              }
-                            },
-                      child: const Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text("Shorten It!"),
-                        ],
-                      ),
+                    onChanged: (value) {
+                      _formKey.currentState!.validate();
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: isLoading
+                        ? null
+                        : () {
+                            if (_formKey.currentState!.validate()) {
+                              shortenLink(longLink);
+                            }
+                          },
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text("Shorten It!"),
+                      ],
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-            ]),
-          ),
+            ),
+          ]),
         ),
       ),
-      Column(
-        children: shortenedLinks
-            .map((shortenedLink) => Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: LinkCard(shortenedLink: shortenedLink),
-                ))
-            .toList(),
-      ),
-    ]);
+    );
   }
 }
 
