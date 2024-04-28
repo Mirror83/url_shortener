@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
 import "package:http/http.dart" as http;
 import 'package:url_launcher/link.dart';
+import "dart:developer" as developer;
 
 void main() {
   runApp(const MyApp());
@@ -109,16 +110,22 @@ class LinkForm extends StatefulWidget {
 }
 
 class _LinkFormState extends State<LinkForm> {
-  var longLink = "";
+  // Arbitrarily decided minimum url length
+  static const minUrlLength = 30;
+
+  String longLink = "";
   var isLoading = false;
+
+  final _formKey = GlobalKey<FormState>();
+
   final shortenedLinks = <ShortenedLink>{};
 
-  void shortenLink() async {
+  void shortenLink(String longLink) async {
     try {
       setState(() {
         isLoading = true;
       });
-      final shortenedLink = await fetchShortenedLink();
+      final shortenedLink = await fetchShortenedLink(longLink);
       setState(() {
         shortenedLinks.add(shortenedLink);
       });
@@ -131,11 +138,14 @@ class _LinkFormState extends State<LinkForm> {
     }
   }
 
-  Future<ShortenedLink> fetchShortenedLink() async {
+  Future<ShortenedLink> fetchShortenedLink(String longLink) async {
     final response = await http
         .post(Uri.parse("https://cleanuri.com/api/v1/shorten"), body: {
       "url": longLink,
     });
+
+    developer.log("Long link: $longLink");
+    developer.log(response.body);
 
     if (response.statusCode == 200) {
       return ShortenedLink.fromJson(
@@ -156,32 +166,53 @@ class _LinkFormState extends State<LinkForm> {
           child: Padding(
             padding: const EdgeInsets.all(16.0),
             child: Stack(children: <Widget>[
-              Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: <Widget>[
-                  TextField(
-                    onChanged: (value) => setState(() {
-                      longLink = value;
-                    }),
-                    decoration: const InputDecoration(
-                      hintText: "Shorten a link here...",
+              Form(
+                key: _formKey,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: <Widget>[
+                    TextFormField(
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return "Please add a link";
+                        } else if (value.length < minUrlLength) {
+                          return "Url must be at least $minUrlLength characters long";
+                        } else if (Uri.tryParse(value) == null) {
+                          return "Ensure that the link is well-formatted";
+                        }
+
+                        setState(() {
+                          longLink = value;
+                        });
+
+                        return null;
+                      },
+                      decoration: const InputDecoration(
+                        hintText: "Shorten a link here...",
+                      ),
+                      onChanged: (value) {
+                        _formKey.currentState!.validate();
+                      },
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: isLoading
-                        ? null
-                        : () {
-                            shortenLink();
-                          },
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text("Shorten It!"),
-                      ],
+                    const SizedBox(height: 16),
+                    ElevatedButton(
+                      onPressed: isLoading
+                          ? null
+                          : () {
+                              if (_formKey.currentState!.validate()) {
+                                developer.log("Shortening url...");
+                                shortenLink(longLink);
+                              }
+                            },
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text("Shorten It!"),
+                        ],
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ]),
           ),
