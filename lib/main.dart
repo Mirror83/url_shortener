@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -114,7 +115,8 @@ class _LinkSectionState extends State<LinkSection> {
   static const minUrlLength = 30;
 
   String longLink = "";
-  var isLoading = false;
+
+  Future<ShortenedLink>? shortenedLinkFuture;
 
   final _formKey = GlobalKey<FormState>();
 
@@ -140,22 +142,15 @@ class _LinkSectionState extends State<LinkSection> {
     });
   }
 
-  void shortenLink(String longLink) async {
-    try {
-      setState(() {
-        isLoading = true;
+  void shortenLinkWithFuture(String value) {
+    setState(() {
+      shortenedLinkFuture = fetchShortenedLink(value).then((value) {
+        setState(() {
+          shortenedLinks.add(value);
+        });
+        return value;
       });
-      final shortenedLink = await fetchShortenedLink(longLink);
-      setState(() {
-        shortenedLinks.add(shortenedLink);
-      });
-    } catch (exception) {
-      return;
-    } finally {
-      setState(() {
-        isLoading = false;
-      });
-    }
+    });
   }
 
   Future<ShortenedLink> fetchShortenedLink(String longLink) async {
@@ -171,7 +166,7 @@ class _LinkSectionState extends State<LinkSection> {
       return ShortenedLink.fromJson(
           jsonDecode(response.body) as Map<String, dynamic>, longLink);
     } else {
-      throw Exception("Failed to shorten URL");
+      throw "Failed to shorten URL. Ensure that the link is valid";
     }
   }
 
@@ -179,7 +174,8 @@ class _LinkSectionState extends State<LinkSection> {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        createLinkForm(context),
+        buildLinkForm(context),
+        buildStatusContaier(context),
         Column(
           children: shortenedLinks
               .map((shortenedLink) => Padding(
@@ -192,7 +188,26 @@ class _LinkSectionState extends State<LinkSection> {
     );
   }
 
-  Widget createLinkForm(BuildContext context) {
+  Widget buildStatusContaier(BuildContext context) {
+    return FutureBuilder(
+        future: shortenedLinkFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.done) {
+            if (snapshot.hasError) {
+              return AnimatedStatusContainer(
+                message: snapshot.error!.toString(),
+                isError: true,
+              );
+            } else if (snapshot.hasData) {
+              return const AnimatedStatusContainer(message: "Link shortened!");
+            }
+          }
+
+          return const SizedBox.shrink();
+        });
+  }
+
+  Widget buildLinkForm(BuildContext context) {
     final theme = Theme.of(context);
     return Padding(
       padding: const EdgeInsets.all(32.0),
@@ -200,7 +215,7 @@ class _LinkSectionState extends State<LinkSection> {
         color: theme.colorScheme.surfaceVariant,
         child: Padding(
           padding: const EdgeInsets.all(16.0),
-          child: Stack(children: <Widget>[
+          child: Column(children: <Widget>[
             Form(
               key: _formKey,
               child: Column(
@@ -216,23 +231,32 @@ class _LinkSectionState extends State<LinkSection> {
                     },
                   ),
                   const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: isLoading
-                        ? null
-                        : () {
+                  FutureBuilder(
+                      future: shortenedLinkFuture,
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState ==
+                            ConnectionState.waiting) {
+                          return const CircularProgressIndicator();
+                        }
+                        return ElevatedButton(
+                          onPressed: () {
                             if (_formKey.currentState!.validate()) {
-                              shortenLink(longLink);
+                              shortenLinkWithFuture(longLink);
                             }
                           },
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text("Shorten It!"),
-                      ],
-                    ),
-                  ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text("Shorten It!"),
+                            ],
+                          ),
+                        );
+                      }),
                 ],
               ),
+            ),
+            const SizedBox(
+              height: 16,
             ),
           ]),
         ),
@@ -284,5 +308,80 @@ class LinkCard extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class AnimatedStatusContainer extends StatefulWidget {
+  final String message;
+  final bool isError;
+
+  const AnimatedStatusContainer(
+      {super.key, this.isError = false, required this.message});
+
+  @override
+  State<AnimatedStatusContainer> createState() =>
+      _AnimatedStatusContainerState();
+}
+
+/// A container that shows a message for a short period of time and then shrinks
+class _AnimatedStatusContainerState extends State<AnimatedStatusContainer> {
+  double _width = 0;
+  double _height = 0;
+  bool isExpanded = false;
+
+  /// The number of seconds for which the container is expanded
+  final expandedSeconds = 5;
+
+  /// The number of milliseconds for the transition between expanded and shrunken states
+  final transitionMillis = 600;
+
+  // Created expandedTimer as a class field to be able to cancel it when the widget is disposed
+  late Timer expandedTimer;
+
+  @override
+  void dispose() {
+    super.dispose();
+    expandedTimer.cancel();
+  }
+
+  void shrink() {
+    setState(() {
+      isExpanded = false;
+      _width = 0;
+      _height = 0;
+    });
+  }
+
+  void expand() {
+    setState(() {
+      // Arbitrary values
+      _width = 300;
+      _height = 30;
+      isExpanded = true;
+    });
+
+    expandedTimer = Timer(Duration(seconds: expandedSeconds), shrink);
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    expand();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return AnimatedContainer(
+        duration: Duration(milliseconds: transitionMillis),
+        width: _width,
+        height: _height,
+        child: Text(
+          widget.message,
+          style: theme.textTheme.bodySmall!.copyWith(
+              color: widget.isError
+                  ? theme.colorScheme.error
+                  : theme.primaryColor),
+        ));
   }
 }
