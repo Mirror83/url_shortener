@@ -91,7 +91,6 @@ class HeroSection extends StatelessWidget {
 class ShortenedLink {
   final String longLink;
   final String resultUrl;
-  final DateTime createdAt = DateTime.now();
 
   ShortenedLink({required this.longLink, required this.resultUrl});
 
@@ -130,6 +129,8 @@ class _LinkSectionState extends State<LinkSection> {
       return "Url must be at least $minUrlLength characters long";
     } else if (Uri.tryParse(value) == null) {
       return "Ensure that the link is well-formatted";
+    } else if (shortenedLinks.any((element) => element.longLink == value)) {
+      return "Link has already been shortened";
     }
 
     updateLongLink(value);
