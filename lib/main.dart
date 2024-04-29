@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_svg/svg.dart';
 import "package:http/http.dart" as http;
 import 'package:url_launcher/link.dart';
@@ -265,7 +266,7 @@ class _LinkSectionState extends State<LinkSection> {
   }
 }
 
-class LinkCard extends StatelessWidget {
+class LinkCard extends StatefulWidget {
   final ShortenedLink shortenedLink;
   const LinkCard({
     super.key,
@@ -273,8 +274,22 @@ class LinkCard extends StatelessWidget {
   });
 
   @override
+  State<LinkCard> createState() => _LinkCardState();
+}
+
+class _LinkCardState extends State<LinkCard> {
+  Future<void>? copiedToClipBoardFuture;
+
+  @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
+
+    void addToClipboard() {
+      setState(() {
+        copiedToClipBoardFuture = Clipboard.setData(
+            ClipboardData(text: widget.shortenedLink.resultUrl));
+      });
+    }
 
     return Card(
       child: Padding(
@@ -282,7 +297,7 @@ class LinkCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(shortenedLink.longLink),
+            Text(widget.shortenedLink.longLink),
             const Divider(
               thickness: 2,
             ),
@@ -290,11 +305,11 @@ class LinkCard extends StatelessWidget {
               height: 16,
             ),
             Link(
-                uri: Uri.parse(shortenedLink.resultUrl),
+                uri: Uri.parse(widget.shortenedLink.resultUrl),
                 builder: (context, followLink) => TextButton(
                       onPressed: followLink,
                       child: Text(
-                        shortenedLink.resultUrl,
+                        widget.shortenedLink.resultUrl,
                         style: theme.textTheme.bodyLarge!.copyWith(
                             color: theme.primaryColor,
                             decoration: TextDecoration.underline,
@@ -302,8 +317,30 @@ class LinkCard extends StatelessWidget {
                       ),
                     )),
             const SizedBox(height: 16),
-            OutlinedButton(
-                onPressed: () {}, child: const Text("Copy to clipboard"))
+            FutureBuilder(
+                future: copiedToClipBoardFuture,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.done) {
+                    if (snapshot.hasError) {
+                      return OutlinedButton(
+                          onPressed: addToClipboard,
+                          child: const Text(
+                              "Failed to copy to clipboard. Press to try again."));
+                    } else {
+                      return const OutlinedButton(
+                        onPressed: null,
+                        child: Text("Successfuly copied"),
+                      );
+                    }
+                  } else if (snapshot.connectionState ==
+                      ConnectionState.waiting) {
+                    return const CircularProgressIndicator();
+                  } else {
+                    return OutlinedButton(
+                        onPressed: addToClipboard,
+                        child: const Text("Copy to clipboard"));
+                  }
+                })
           ],
         ),
       ),
