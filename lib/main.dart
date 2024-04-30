@@ -103,6 +103,97 @@ class ShortenedLink {
   }
 }
 
+class LinkForm extends StatefulWidget {
+  /// Arbitrary minimum length for a URL
+  static const minUrlLength = 30;
+
+  final String? Function(String?) linkFieldValidator;
+  final Future<ShortenedLink>? shortenedLinkFuture;
+  final void Function(String) shortenLink;
+
+  const LinkForm({
+    super.key,
+    required this.linkFieldValidator,
+    required this.shortenedLinkFuture,
+    required this.shortenLink,
+  });
+
+  @override
+  State<LinkForm> createState() => _LinkFormState();
+}
+
+class _LinkFormState extends State<LinkForm> {
+  var longLink = "";
+
+  final _formKey = GlobalKey<FormState>();
+
+  void updateLongLink(String value) {
+    setState(() {
+      longLink = value;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.all(32.0),
+      child: Card(
+        color: theme.colorScheme.surfaceVariant,
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(children: <Widget>[
+            Form(
+              key: _formKey,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: <Widget>[
+                  TextFormField(
+                    validator: widget.linkFieldValidator,
+                    decoration: const InputDecoration(
+                      hintText: "Shorten a link here...",
+                    ),
+                    onChanged: (value) {
+                      if (_formKey.currentState!.validate()) {
+                        updateLongLink(value);
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  FutureBuilder(
+                      future: widget.shortenedLinkFuture,
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState ==
+                            ConnectionState.waiting) {
+                          return const CircularProgressIndicator();
+                        }
+                        return ElevatedButton(
+                          onPressed: () {
+                            if (_formKey.currentState!.validate()) {
+                              widget.shortenLink(longLink);
+                            }
+                          },
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text("Shorten It!"),
+                            ],
+                          ),
+                        );
+                      }),
+                ],
+              ),
+            ),
+            const SizedBox(
+              height: 16,
+            ),
+          ]),
+        ),
+      ),
+    );
+  }
+}
+
 class LinkSection extends StatefulWidget {
   const LinkSection({super.key});
 
@@ -111,37 +202,23 @@ class LinkSection extends StatefulWidget {
 }
 
 class _LinkSectionState extends State<LinkSection> {
-  // Arbitrarily decided minimum url length
-  static const minUrlLength = 30;
-
-  String longLink = "";
-
   Future<ShortenedLink>? shortenedLinkFuture;
-
-  final _formKey = GlobalKey<FormState>();
+  Future<ClipboardData?>? latestLinkOnClipboardFuture;
 
   final shortenedLinks = <ShortenedLink>{};
 
   String? linkFieldValidator(String? value) {
     if (value == null || value.isEmpty) {
       return "Please add a link";
-    } else if (value.length < minUrlLength) {
-      return "Url must be at least $minUrlLength characters long";
+    } else if (value.length < LinkForm.minUrlLength) {
+      return "Url must be at least ${LinkForm.minUrlLength}characters long";
     } else if (Uri.tryParse(value) == null) {
       return "Ensure that the link is well-formatted";
     } else if (shortenedLinks.any((element) => element.longLink == value)) {
       return "Link has already been shortened";
     }
 
-    updateLongLink(value);
-
     return null;
-  }
-
-  void updateLongLink(String value) {
-    setState(() {
-      longLink = value;
-    });
   }
 
   void shortenLinkWithFuture(String value) {
@@ -172,17 +249,31 @@ class _LinkSectionState extends State<LinkSection> {
     }
   }
 
+  void getLatestLinkOnClipboard() {
+    setState(() {
+      latestLinkOnClipboardFuture = Clipboard.getData("text/plain");
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
-        buildLinkForm(context),
+        LinkForm(
+          linkFieldValidator: linkFieldValidator,
+          shortenLink: shortenLinkWithFuture,
+          shortenedLinkFuture: shortenedLinkFuture,
+        ),
         buildStatusContaier(context),
         Column(
           children: shortenedLinks
               .map((shortenedLink) => Padding(
                     padding: const EdgeInsets.all(16.0),
-                    child: LinkCard(shortenedLink: shortenedLink),
+                    child: LinkCard(
+                      latestLinkOnClipboardFuture: latestLinkOnClipboardFuture,
+                      getLatestLinkOnClipboard: getLatestLinkOnClipboard,
+                      shortenedLink: shortenedLink,
+                    ),
                   ))
               .toList(),
         ),
@@ -208,70 +299,18 @@ class _LinkSectionState extends State<LinkSection> {
           return const SizedBox.shrink();
         });
   }
-
-  Widget buildLinkForm(BuildContext context) {
-    final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.all(32.0),
-      child: Card(
-        color: theme.colorScheme.surfaceVariant,
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(children: <Widget>[
-            Form(
-              key: _formKey,
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: <Widget>[
-                  TextFormField(
-                    validator: linkFieldValidator,
-                    decoration: const InputDecoration(
-                      hintText: "Shorten a link here...",
-                    ),
-                    onChanged: (value) {
-                      _formKey.currentState!.validate();
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  FutureBuilder(
-                      future: shortenedLinkFuture,
-                      builder: (context, snapshot) {
-                        if (snapshot.connectionState ==
-                            ConnectionState.waiting) {
-                          return const CircularProgressIndicator();
-                        }
-                        return ElevatedButton(
-                          onPressed: () {
-                            if (_formKey.currentState!.validate()) {
-                              shortenLinkWithFuture(longLink);
-                            }
-                          },
-                          child: const Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text("Shorten It!"),
-                            ],
-                          ),
-                        );
-                      }),
-                ],
-              ),
-            ),
-            const SizedBox(
-              height: 16,
-            ),
-          ]),
-        ),
-      ),
-    );
-  }
 }
 
 class LinkCard extends StatefulWidget {
   final ShortenedLink shortenedLink;
+  final Future<ClipboardData?>? latestLinkOnClipboardFuture;
+  final void Function() getLatestLinkOnClipboard;
+
   const LinkCard({
     super.key,
     required this.shortenedLink,
+    this.latestLinkOnClipboardFuture,
+    required this.getLatestLinkOnClipboard,
   });
 
   @override
@@ -281,16 +320,21 @@ class LinkCard extends StatefulWidget {
 class _LinkCardState extends State<LinkCard> {
   Future<void>? copiedToClipBoardFuture;
 
+  void addToClipboard() {
+    setState(() {
+      copiedToClipBoardFuture =
+          Clipboard.setData(ClipboardData(text: widget.shortenedLink.resultUrl))
+              .then((value) {
+        setState(() {
+          widget.getLatestLinkOnClipboard();
+        });
+      });
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
-
-    void addToClipboard() {
-      setState(() {
-        copiedToClipBoardFuture = Clipboard.setData(
-            ClipboardData(text: widget.shortenedLink.resultUrl));
-      });
-    }
 
     return Card(
       child: Padding(
@@ -328,9 +372,33 @@ class _LinkCardState extends State<LinkCard> {
                           child: const Text(
                               "Failed to copy to clipboard. Press to try again."));
                     } else {
-                      return const OutlinedButton(
-                        onPressed: null,
-                        child: Text("Successfuly copied"),
+                      return FutureBuilder(
+                        future: widget.latestLinkOnClipboardFuture,
+                        builder: (context, snapshot) {
+                          if (snapshot.connectionState ==
+                              ConnectionState.done) {
+                            if (snapshot.hasError) {
+                              return OutlinedButton(
+                                  onPressed: addToClipboard,
+                                  child: const Text(
+                                      "Failed to copy to clipboard. Press to try again."));
+                            }
+
+                            if (snapshot.hasData) {
+                              developer.log(snapshot.data!.text.toString());
+                              if (snapshot.data!.text !=
+                                  widget.shortenedLink.resultUrl) {
+                                return OutlinedButton(
+                                    onPressed: addToClipboard,
+                                    child: const Text("Copy to clipboard"));
+                              }
+                            }
+                          }
+
+                          return const OutlinedButton(
+                              onPressed: null,
+                              child: Text("Successfully copied"));
+                        },
                       );
                     }
                   } else if (snapshot.connectionState ==
